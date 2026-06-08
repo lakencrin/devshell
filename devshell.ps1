@@ -2,7 +2,9 @@ param (
     [string[]]$ConfigNames
 )
 
-Write-Host "Config names: $ConfigNames"
+Write-Output "*************************************************************************"
+Write-Output "**************************** DevShell v0.1.0 ****************************"
+Write-Output "*************************************************************************"
 
 $UtilsDirName = 'utils'
 $UtilsDirPath = Join-Path $PSScriptRoot $UtilsDirName
@@ -20,15 +22,41 @@ if (-not (Test-Path -Path $MainUtilsFilePath)) {
 
 . $MainUtilsFilePath
 
-$ConfigDirPaths = @((Join-Path $PSScriptRoot 'config'))
+$UserConfigFilePath = (Find-UserConfigFile)
+if ([string]::IsNullOrWhiteSpace($UserConfigFilePath)) {
+    Write-Error "Couldn't find user config .devshell.conf - reinstall utility to fix this problem"
+    exit 102
+}
+
+
+$Variables = @{
+    'DEVENV_DIR' = (Reverse-Backslashes $PSScriptRoot)
+    'USER_HOME_DIR' = (Reverse-Backslashes $HOME)
+}
+
+$UserConfig = (Get-Content -Path $UserConfigFilePath -Raw | ConvertFrom-Json)
+if ($null -ne $UserConfig.Variables) {
+    $Variables += $UserConfig.Variables
+} 
+
+Write-Output ("-" * 75)
+Write-Output ("Configs: " + $ConfigNames -join ', ') 
+Write-Output ("-" * 75)
+
+$ConfigDirectories = @()
+foreach ($ConfigPath in $UserConfig.ConfigPaths) {
+    $dir = (ReplaceVariables -Variables $Variables -OriginalString $ConfigPath)
+
+    $ConfigDirectories += $dir
+}
+
 $ConfigCommands = @()
 foreach ($ConfigName in $ConfigNames) {
     $ConfigFileName = $ConfigName + '.json'
-    $ConfigFilePath = Find-ConfigFile $ConfigDirPaths $ConfigFileName
+    $ConfigFilePath = Find-ConfigFile $ConfigDirectories $ConfigFileName
     if ([string]::IsNullOrWhiteSpace($ConfigFilePath)) {
         Write-Error "Couldn't find config with name ${ConfigName}"
     } else {
-        Write-Output $ConfigFilePath
         $ConfigCommands += (Parse-ConfigFile -ConfigFilePath $ConfigFilePath)
     }
 }
@@ -60,6 +88,6 @@ foreach ($Command in $ConfigCommands) {
             Set-Item -Path "Env:${EnvName}" -Value $NewValue
         }
         
-        Default { Write-Output "unknown command $CommandType" }
+        Default { Write-Warning "unknown command $CommandType" }
     }
 }

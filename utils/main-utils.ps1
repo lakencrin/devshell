@@ -1,3 +1,16 @@
+function Get-UserConfigFilePath {
+    return (Join-Path $HOME '.devshell.conf')
+}
+
+function Find-UserConfigFile {
+    $UserConfigFile = (Get-UserConfigFilePath)
+    if (-not (Test-Path $UserConfigFile)) {
+        return
+    }
+
+    return $UserConfigFile
+}
+
 function Parse-ConfigFile {
     param (
         [string]$ConfigFilePath
@@ -26,4 +39,26 @@ function Find-ConfigFile {
     }
 
     return ""
+}
+
+function Reverse-Backslashes {
+    param (
+        [string]$OriginalPath
+    )
+
+    return ($OriginalPath -replace '\\', '/')
+}
+
+function ReplaceVariables {
+    param (
+        [System.Collections.Hashtable]$Variables,
+        [string]$OriginalString
+    )
+
+    $result = $OriginalString
+    foreach ($var in $Variables.GetEnumerator()) {
+        $result = $result -creplace ("\$\<" + $var.Key + "\>"), $var.Value
+    }
+
+    return $result
 }
